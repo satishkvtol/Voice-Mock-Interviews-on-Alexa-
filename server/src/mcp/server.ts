@@ -3,6 +3,9 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger.js';
 import { pingToolSchema, pingToolHandler } from './tools/ping.js';
+import { parseResumeInputSchema, parseResumeHandler } from './tools/parse_resume.js';
+import { startInterviewInputSchema, startInterviewHandler } from './tools/start_interview.js';
+import { initStorage } from '../services/storage.js';
 
 // Map active SSE transports by sessionId
 const activeTransports = new Map<string, SSEServerTransport>();
@@ -20,7 +23,7 @@ export function createInterviewDojoMcpServer(): McpServer {
     }
   );
 
-  // Register temporary ping tool for Phase 1
+  // Temporary ping tool (Phase 1/2)
   server.tool(
     'ping',
     'Health check / connectivity ping tool for MCP clients',
@@ -31,19 +34,44 @@ export function createInterviewDojoMcpServer(): McpServer {
     }
   );
 
+  // parse_resume tool
+  server.tool(
+    'parse_resume',
+    'Extract skills, projects, experience, and education from candidate resume text',
+    parseResumeInputSchema,
+    async (args) => {
+      logger.info('Executing parse_resume tool');
+      return parseResumeHandler(args as any);
+    }
+  );
+
+  // start_interview tool
+  server.tool(
+    'start_interview',
+    'Initialize a mock interview session and generate interview plan based on resume and job description',
+    startInterviewInputSchema,
+    async (args) => {
+      logger.info('Executing start_interview tool', { role: args.role, difficulty: args.difficulty });
+      return startInterviewHandler(args as any);
+    }
+  );
+
   return server;
 }
 
 export function setupMcpRoutes(app: any) {
+  // Initialize storage (MongoDB or in-memory fallback)
+  initStorage();
+
   const mcpServer = createInterviewDojoMcpServer();
 
   // GET /mcp - Establish SSE Connection (Streamable HTTP / SSE transport)
   app.get('/mcp', async (req: Request, res: Response) => {
     logger.info('Establishing MCP SSE transport connection');
     const transport = new SSEServerTransport('/mcp/messages', res);
-    
+
     activeTransports.set(transport.sessionId, transport);
-    
+
     req.on('close', () => {
       logger.info('MCP SSE transport closed', { sessionId: transport.sessionId });
       activeTransports.delete(transport.sessionId);

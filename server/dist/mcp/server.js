@@ -2,6 +2,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { logger } from '../utils/logger.js';
 import { pingToolSchema, pingToolHandler } from './tools/ping.js';
+import { parseResumeInputSchema, parseResumeHandler } from './tools/parse_resume.js';
+import { startInterviewInputSchema, startInterviewHandler } from './tools/start_interview.js';
+import { initStorage } from '../services/storage.js';
 // Map active SSE transports by sessionId
 const activeTransports = new Map();
 export function createInterviewDojoMcpServer() {
@@ -13,14 +16,26 @@ export function createInterviewDojoMcpServer() {
             tools: {},
         },
     });
-    // Register temporary ping tool for Phase 1
+    // Temporary ping tool (Phase 1/2)
     server.tool('ping', 'Health check / connectivity ping tool for MCP clients', pingToolSchema, async (args) => {
         logger.info('Ping tool executed', { args });
         return pingToolHandler(args);
     });
+    // parse_resume tool
+    server.tool('parse_resume', 'Extract skills, projects, experience, and education from candidate resume text', parseResumeInputSchema, async (args) => {
+        logger.info('Executing parse_resume tool');
+        return parseResumeHandler(args);
+    });
+    // start_interview tool
+    server.tool('start_interview', 'Initialize a mock interview session and generate interview plan based on resume and job description', startInterviewInputSchema, async (args) => {
+        logger.info('Executing start_interview tool', { role: args.role, difficulty: args.difficulty });
+        return startInterviewHandler(args);
+    });
     return server;
 }
 export function setupMcpRoutes(app) {
+    // Initialize storage (MongoDB or in-memory fallback)
+    initStorage();
     const mcpServer = createInterviewDojoMcpServer();
     // GET /mcp - Establish SSE Connection (Streamable HTTP / SSE transport)
     app.get('/mcp', async (req, res) => {
