@@ -7,9 +7,11 @@ export interface IQuestion {
   category: 'project' | 'skill_gap' | 'behavioral';
   answer?: string;
   score?: {
-    correctness: number;
-    depth: number;
-    clarity: number;
+    scores: {
+      correctness: number;
+      depth: number;
+      clarity: number;
+    };
     overall: number;
     feedback: string;
     followUp?: string;
@@ -51,9 +53,11 @@ const QuestionSchema = new Schema<IQuestion>({
   category: { type: String, enum: ['project', 'skill_gap', 'behavioral'], required: true },
   answer: { type: String },
   score: {
-    correctness: { type: Number },
-    depth: { type: Number },
-    clarity: { type: Number },
+    scores: {
+      correctness: { type: Number },
+      depth: { type: Number },
+      clarity: { type: Number },
+    },
     overall: { type: Number },
     feedback: { type: String },
     followUp: { type: String },

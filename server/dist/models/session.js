@@ -6,9 +6,11 @@ const QuestionSchema = new Schema({
     category: { type: String, enum: ['project', 'skill_gap', 'behavioral'], required: true },
     answer: { type: String },
     score: {
-        correctness: { type: Number },
-        depth: { type: Number },
-        clarity: { type: Number },
+        scores: {
+            correctness: { type: Number },
+            depth: { type: Number },
+            clarity: { type: Number },
+        },
         overall: { type: Number },
         feedback: { type: String },
         followUp: { type: String },

@@ -2,9 +2,11 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger.js';
-import { pingToolSchema, pingToolHandler } from './tools/ping.js';
 import { parseResumeInputSchema, parseResumeHandler } from './tools/parse_resume.js';
 import { startInterviewInputSchema, startInterviewHandler } from './tools/start_interview.js';
+import { nextQuestionInputSchema, nextQuestionHandler } from './tools/next_question.js';
+import { scoreAnswerInputSchema, scoreAnswerHandler } from './tools/score_answer.js';
+import { sessionReportInputSchema, sessionReportHandler } from './tools/session_report.js';
 import { initStorage } from '../services/storage.js';
 
 // Map active SSE transports by sessionId
@@ -23,18 +25,7 @@ export function createInterviewDojoMcpServer(): McpServer {
     }
   );
 
-  // Temporary ping tool (Phase 1/2)
-  server.tool(
-    'ping',
-    'Health check / connectivity ping tool for MCP clients',
-    pingToolSchema,
-    async (args) => {
-      logger.info('Ping tool executed', { args });
-      return pingToolHandler(args);
-    }
-  );
-
-  // parse_resume tool
+  // 1. parse_resume tool
   server.tool(
     'parse_resume',
     'Extract skills, projects, experience, and education from candidate resume text',
@@ -45,7 +36,7 @@ export function createInterviewDojoMcpServer(): McpServer {
     }
   );
 
-  // start_interview tool
+  // 2. start_interview tool
   server.tool(
     'start_interview',
     'Initialize a mock interview session and generate interview plan based on resume and job description',
@@ -53,6 +44,39 @@ export function createInterviewDojoMcpServer(): McpServer {
     async (args) => {
       logger.info('Executing start_interview tool', { role: args.role, difficulty: args.difficulty });
       return startInterviewHandler(args as any);
+    }
+  );
+
+  // 3. next_question tool
+  server.tool(
+    'next_question',
+    'Fetch the next question in the interview sequence for the active session',
+    nextQuestionInputSchema,
+    async (args) => {
+      logger.info('Executing next_question tool', { sessionId: args.sessionId });
+      return nextQuestionHandler(args as any);
+    }
+  );
+
+  // 4. score_answer tool
+  server.tool(
+    'score_answer',
+    'Evaluate candidate answer using LLM Bar Raiser rubric and generate feedback',
+    scoreAnswerInputSchema,
+    async (args) => {
+      logger.info('Executing score_answer tool', { sessionId: args.sessionId });
+      return scoreAnswerHandler(args as any);
+    }
+  );
+
+  // 5. session_report tool
+  server.tool(
+    'session_report',
+    'Generate comprehensive final report with strengths, weak topics, and 3-5 item practice plan',
+    sessionReportInputSchema,
+    async (args) => {
+      logger.info('Executing session_report tool', { sessionId: args.sessionId });
+      return sessionReportHandler(args as any);
     }
   );
 

@@ -43,7 +43,7 @@ export async function getSession(sessionId: string): Promise<ISession | null> {
   if (isMongoConnected) {
     try {
       const doc = await SessionModel.findOne({ sessionId }).lean();
-      if (doc) return doc as ISession;
+      if (doc) return (doc as unknown) as ISession;
     } catch (err: any) {
       logger.error('Failed to query session from MongoDB', { error: err.message });
     }
