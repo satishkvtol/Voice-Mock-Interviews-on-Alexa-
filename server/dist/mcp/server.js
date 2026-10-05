@@ -48,12 +48,13 @@ export function createInterviewDojoMcpServer() {
 export function setupMcpRoutes(app) {
     // Initialize storage (MongoDB or in-memory fallback)
     initStorage();
-    const mcpServer = createInterviewDojoMcpServer();
     // GET /mcp - Establish SSE Connection (Streamable HTTP / SSE transport)
     app.get('/mcp', async (req, res) => {
         logger.info('Establishing MCP SSE transport connection');
         const transport = new SSEServerTransport('/mcp/messages', res);
         activeTransports.set(transport.sessionId, transport);
+        // Create a dedicated McpServer instance for this connection
+        const mcpServer = createInterviewDojoMcpServer();
         req.on('close', () => {
             logger.info('MCP SSE transport closed', { sessionId: transport.sessionId });
             activeTransports.delete(transport.sessionId);

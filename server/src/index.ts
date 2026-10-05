@@ -22,7 +22,19 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(limiter);
-app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl) or any localhost origin in dev
+      if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        callback(null, true);
+      } else {
+        callback(null, origin === ALLOWED_ORIGIN);
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '2mb' }));
 
 // Health Check Endpoint
