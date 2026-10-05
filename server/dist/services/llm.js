@@ -64,5 +64,9 @@ export async function invokeBedrockJson(systemPrompt, userPrompt, schema, mockFn
             logger.warn(`Bedrock invocation attempt ${attempt} failed: ${err.message}`);
         }
     }
+    if (mockFn) {
+        logger.warn(`AWS Bedrock invocation unavailable (${lastError?.message}). Falling back to Mock LLM provider for demo.`);
+        return mockFn();
+    }
     throw new Error(`LLM invocation failed after 2 attempts. Last error: ${lastError?.message}`);
 }
