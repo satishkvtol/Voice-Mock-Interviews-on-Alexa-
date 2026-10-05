@@ -1,7 +1,8 @@
+/// <reference types="vite/client" />
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
-const MCP_SERVER_URL = import.meta.env.VITE_MCP_SERVER_URL || 'http://localhost:3001/mcp';
+const MCP_SERVER_URL = (import.meta as any).env?.VITE_MCP_SERVER_URL || 'http://localhost:3001/mcp';
 
 let clientInstance: Client | null = null;
 let transportInstance: SSEClientTransport | null = null;
