@@ -68,64 +68,185 @@ export const SessionReportSchema = z.object({
 
 export type SessionReportResult = z.infer<typeof SessionReportSchema>;
 
-// --- Helper Mock Generator functions for offline testing ---
+// --- Dynamic Keyword Extractor & Smart Mock Generators ---
 
-function getMockParsedResume(resumeText: string): ParsedResume {
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractKeywords(text: string): string[] {
+  const commonTech = [
+    'Java', 'Spring Boot', 'Python', 'C++', 'JavaScript', 'TypeScript', 'React', 'Angular', 'Vue',
+    'Node.js', 'Express', 'Next.js', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis', 'Kafka', 'Docker',
+    'Kubernetes', 'AWS', 'Bedrock', 'Microservices', 'REST', 'GraphQL', 'System Design', 'CI/CD',
+    'Hibernate', 'Redux', 'Tailwind', 'Git'
+  ];
+  const found: string[] = [];
+  for (const tech of commonTech) {
+    const regex = new RegExp(`\\b${escapeRegex(tech)}\\b`, 'i');
+    if (regex.test(text)) {
+      found.push(tech);
+    }
+  }
+  return found.length > 0 ? found : ['Software Development', 'System Architecture', 'API Integration'];
+}
+
+function getDynamicParsedResume(resumeText: string): ParsedResume {
+  const skills = extractKeywords(resumeText);
+  const lines = resumeText.split('\n').map((l) => l.trim()).filter(Boolean);
+  
+  const projectLines = lines.filter((l) => /project|built|created|developed|designed/i.test(l));
+  const projects = projectLines.slice(0, 3).map((line, idx) => ({
+    name: line.substring(0, 40) || `Project ${idx + 1}`,
+    summary: line,
+    tech: skills.slice(0, 3),
+  }));
+
+  if (projects.length === 0) {
+    projects.push({
+      name: 'Primary Portfolio Project',
+      summary: lines[0] || 'Core technical implementation project.',
+      tech: skills.slice(0, 3),
+    });
+  }
+
   return {
-    skills: ['TypeScript', 'React', 'Node.js', 'Express', 'MongoDB', 'AWS Bedrock'],
-    projects: [
-      {
-        name: 'InterviewDojo MCP Server',
-        summary: 'Voice-based mock interview platform using Amazon Bedrock Converse API and MCP protocol.',
-        tech: ['TypeScript', 'Express', 'MCP SDK', 'Amazon Bedrock'],
-      },
-    ],
+    skills,
+    projects,
     experience: [
       {
-        role: 'Full Stack Engineer Intern',
-        org: 'Tech Innovators Inc',
-        highlights: ['Built real-time web applications with React and Node.js.'],
+        role: 'Software Development Engineer',
+        org: 'Tech Engineering Team',
+        highlights: lines.slice(0, 2),
       },
     ],
-    education: 'B.S. in Computer Science',
+    education: 'Degree in Computer Science or Software Engineering',
   };
 }
 
-function getMockPlan(numQuestions: number, role: string): { questions: z.infer<typeof QuestionGeneratedSchema>[] } {
-  const mockQuestions: z.infer<typeof QuestionGeneratedSchema>[] = [
-    {
-      index: 0,
-      question: `Can you explain how you designed the architecture for your InterviewDojo MCP project?`,
-      topic: 'InterviewDojo Project',
+function getDynamicPlan(
+  numQuestions: number,
+  role: string,
+  parsedResume: ParsedResume,
+  jobDescription: string
+): { questions: z.infer<typeof QuestionGeneratedSchema>[] } {
+  const resumeSkills = parsedResume.skills;
+  const jobSkills = extractKeywords(jobDescription);
+  const gapSkills = jobSkills.filter((s) => !resumeSkills.includes(s));
+  const activeGaps = gapSkills.length > 0 ? gapSkills : ['System Scalability', 'Performance Tuning'];
+
+  const questions: z.infer<typeof QuestionGeneratedSchema>[] = [];
+  let currentIdx = 0;
+
+  // 1. Project / Resume Questions (~60%)
+  const projCount = Math.max(1, Math.floor(numQuestions * 0.5));
+  for (let i = 0; i < projCount; i++) {
+    const skill = resumeSkills[i % resumeSkills.length] || 'software architecture';
+    const projName = parsedResume.projects[i % parsedResume.projects.length]?.name || 'your primary project';
+    questions.push({
+      index: currentIdx++,
+      question: `In your experience with ${skill} on ${projName}, how did you handle system design trade-offs and error recovery?`,
+      topic: `${skill} & Architecture`,
       category: 'project',
-    },
-    {
-      index: 1,
-      question: `How do you handle asynchronous state management and real-time streams in React?`,
-      topic: 'React & State Management',
-      category: 'project',
-    },
-    {
-      index: 2,
-      question: `What experience do you have with AWS Bedrock Converse API and prompt engineering?`,
-      topic: 'AWS Bedrock LLMs',
+    });
+  }
+
+  // 2. Skill Gap Questions (~40%)
+  const gapCount = Math.max(1, numQuestions - projCount - 1);
+  for (let i = 0; i < gapCount; i++) {
+    const gapSkill = activeGaps[i % activeGaps.length];
+    questions.push({
+      index: currentIdx++,
+      question: `The ${role} role requires proficiency in ${gapSkill}. How would you design a scalable microservice using ${gapSkill}?`,
+      topic: `${gapSkill} Implementation`,
       category: 'skill_gap',
-    },
-    {
-      index: 3,
-      question: `Describe how you approach optimizing MongoDB queries for high-concurrency microservices.`,
-      topic: 'MongoDB Optimization',
-      category: 'skill_gap',
-    },
-    {
-      index: 4,
-      question: `Tell me about a time when you encountered a major production bug and how you resolved it under pressure.`,
-      topic: 'Troubleshooting & Pressure',
-      category: 'behavioral',
-    },
+    });
+  }
+
+  // 3. Exactly One Behavioral Question
+  questions.push({
+    index: currentIdx++,
+    question: `Tell me about a challenging technical deadline or production incident you faced, and how you communicated trade-offs to stakeholders.`,
+    topic: 'Leadership & Conflict Resolution',
+    category: 'behavioral',
+  });
+
+  return { questions: questions.slice(0, numQuestions) };
+}
+
+function getDynamicScore(
+  question: IQuestion,
+  answer: string
+): ScoreAnswerResult {
+  const trimmed = answer.trim();
+  const wordCount = trimmed.split(/\s+/).length;
+  
+  // Check for technical buzzwords / keywords in candidate answer
+  const techKeywords = [
+    'architecture', 'service', 'api', 'database', 'cache', 'redis', 'async', 'concurrency',
+    'latency', 'scalability', 'react', 'java', 'node', 'express', 'mongodb', 'spring', 'design',
+    'metric', 'error', 'testing', 'index', 'queue', 'kafka', 'cluster', 'deployment'
   ];
 
-  return { questions: mockQuestions.slice(0, numQuestions) };
+  let keywordHits = 0;
+  for (const kw of techKeywords) {
+    if (new RegExp(`\\b${kw}\\b`, 'i').test(trimmed)) {
+      keywordHits++;
+    }
+  }
+
+  let correctness = 5.0;
+  let depth = 5.0;
+  let clarity = 6.0;
+
+  if (wordCount < 6) {
+    // Extremely brief / vague answer
+    correctness = Math.min(3.5, wordCount * 0.7);
+    depth = 2.0;
+    clarity = 4.0;
+  } else if (wordCount < 15) {
+    correctness = 5.0 + keywordHits * 0.8;
+    depth = 4.5 + keywordHits * 0.9;
+    clarity = 6.5;
+  } else {
+    // Substantial detailed answer
+    correctness = Math.min(9.5, 6.0 + keywordHits * 0.8);
+    depth = Math.min(9.5, 5.5 + wordCount * 0.08 + keywordHits * 0.6);
+    clarity = Math.min(9.5, 7.0 + (wordCount > 25 ? 1.0 : 0.5));
+  }
+
+  // Cap scores between 0 and 10
+  correctness = Number(Math.max(1, Math.min(10, correctness)).toFixed(1));
+  depth = Number(Math.max(1, Math.min(10, depth)).toFixed(1));
+  clarity = Number(Math.max(1, Math.min(10, clarity)).toFixed(1));
+  
+  const overall = Number(((correctness * 0.4) + (depth * 0.4) + (clarity * 0.2)).toFixed(1));
+
+  let feedback = '';
+  let followUp: string | undefined = undefined;
+  let idealAnswerHint = '';
+
+  if (overall < 5.0) {
+    feedback = `Your answer to "${question.topic}" was too brief and lacked concrete technical specifics. State your architectural choice clearly.`;
+    followUp = `Can you provide a specific example of how you implemented ${question.topic}?`;
+    idealAnswerHint = `Top candidates state their concrete design choices, mention error handling, and quantify performance results.`;
+  } else if (overall < 7.5) {
+    feedback = `Good foundational answer for ${question.topic}. You covered the main concept but could dive deeper into performance trade-offs.`;
+    followUp = `How would your solution handle 10x traffic spikes or database connection limits?`;
+    idealAnswerHint = `Highlight explicit caching strategies, asynchronous queues, and automated monitoring thresholds.`;
+  } else {
+    feedback = `Excellent, highly structured response on ${question.topic}. You explained your technical approach and trade-offs clearly.`;
+    followUp = `What key telemetry metric would you alert on to detect failures early?`;
+    idealAnswerHint = `A top Bar Raiser answer quantifies latency impact, fallback strategies, and automated disaster recovery.`;
+  }
+
+  return {
+    scores: { correctness, depth, clarity },
+    overall,
+    feedback,
+    followUp,
+    idealAnswerHint,
+  };
 }
 
 // --- Service Implementation ---
@@ -139,7 +260,7 @@ export async function parseResumeService(resumeText: string): Promise<ParsedResu
     systemPrompt,
     userPrompt,
     ParsedResumeSchema,
-    () => getMockParsedResume(resumeText)
+    () => getDynamicParsedResume(resumeText)
   );
 }
 
@@ -176,7 +297,7 @@ Generate ${totalQuestions} questions strictly adhering to the JSON schema.`;
     systemPrompt,
     userPrompt,
     InterviewPlanSchema,
-    () => getMockPlan(totalQuestions, role)
+    () => getDynamicPlan(totalQuestions, role, parsedResume, jobDescription)
   );
 
   const sessionId = uuidv4();
@@ -241,13 +362,7 @@ Provide scoring in strict JSON format.`;
     systemPrompt,
     userPrompt,
     ScoreAnswerSchema,
-    () => ({
-      scores: { correctness: 8, depth: 7, clarity: 8 },
-      overall: 7.7,
-      feedback: 'Good overview of your architecture. You explained the main tradeoffs clearly.',
-      followUp: 'Could you elaborate on how you handled error recovery when Bedrock APIs rate limited?',
-      idealAnswerHint: 'A strong response highlights explicit fallback mechanisms and asynchronous queue retry patterns.',
-    })
+    () => getDynamicScore(currentQ, answer)
   );
 
   // Save candidate answer and score into session
@@ -347,18 +462,23 @@ Answer Summaries and Scores: ${JSON.stringify(
     SessionReportSchema,
     () => {
       const sorted = [...perTopic].sort((a, b) => b.score - a.score);
-      const strengths = sorted.filter((t) => t.score >= 7).map((t) => t.topic);
-      const weakTopics = sorted.filter((t) => t.score < 7).map((t) => t.topic);
+      const strengths = sorted.filter((t) => t.score >= 6.5).map((t) => t.topic);
+      const weakTopics = sorted.filter((t) => t.score < 6.5).map((t) => t.topic);
+
+      const weakList = weakTopics.length ? weakTopics : ['System Bottlenecks & Edge Cases'];
+      const practicePlan = weakList.map(
+        (t) => `Practice deep dive into ${t} trade-offs, error recovery, and performance telemetry.`
+      );
 
       return {
         overall: Number(overallAvg.toFixed(1)),
         perTopic,
-        strengths: strengths.length ? strengths : ['Basic domain understanding'],
-        weakTopics: weakTopics.length ? weakTopics : ['Deep technical trade-offs'],
-        practicePlan: [
-          'Practice explaining complex system design trade-offs in 60 seconds.',
-          'Review AWS Bedrock Converse API request formatting and retry strategies.',
-          'Prepare structured STAR-format stories for leadership and pressure scenarios.',
+        strengths: strengths.length ? strengths : [perTopic[0]?.topic || 'Technical Fundamentals'],
+        weakTopics: weakList,
+        practicePlan: practicePlan.length >= 3 ? practicePlan.slice(0, 5) : [
+          ...practicePlan,
+          'Review STAR method structure for behavioral leadership questions.',
+          'Practice explaining 60-second system architecture trade-offs under pressure.'
         ],
       };
     }
