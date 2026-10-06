@@ -2,12 +2,12 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { parseResumeInputSchema, parseResumeHandler } from '../../server/src/mcp/tools/parse_resume.js';
-import { startInterviewInputSchema, startInterviewHandler } from '../../server/src/mcp/tools/start_interview.js';
-import { nextQuestionInputSchema, nextQuestionHandler } from '../../server/src/mcp/tools/next_question.js';
-import { scoreAnswerInputSchema, scoreAnswerHandler } from '../../server/src/mcp/tools/score_answer.js';
-import { sessionReportInputSchema, sessionReportHandler } from '../../server/src/mcp/tools/session_report.js';
-import { initStorage } from '../../server/src/services/storage.js';
+import { parseResumeInputSchema, parseResumeHandler } from './src/mcp/tools/parse_resume.js';
+import { startInterviewInputSchema, startInterviewHandler } from './src/mcp/tools/start_interview.js';
+import { nextQuestionInputSchema, nextQuestionHandler } from './src/mcp/tools/next_question.js';
+import { scoreAnswerInputSchema, scoreAnswerHandler } from './src/mcp/tools/score_answer.js';
+import { sessionReportInputSchema, sessionReportHandler } from './src/mcp/tools/session_report.js';
+import { initStorage } from './src/services/storage.js';
 
 const app = express();
 app.use(cors({ origin: '*', credentials: true }));
