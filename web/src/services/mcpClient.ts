@@ -2,7 +2,16 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
-const MCP_SERVER_URL = (import.meta as any).env?.VITE_MCP_SERVER_URL || 'http://localhost:3001/mcp';
+function getMcpServerUrl(): string {
+  if ((import.meta as any).env?.VITE_MCP_SERVER_URL) {
+    return (import.meta as any).env.VITE_MCP_SERVER_URL;
+  }
+  // In production (Vercel), use relative serverless endpoint /api/mcp
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `${window.location.origin}/api/mcp`;
+  }
+  return 'http://localhost:3001/mcp';
+}
 
 let clientInstance: Client | null = null;
 let transportInstance: SSEClientTransport | null = null;
@@ -12,7 +21,9 @@ export async function getMcpClient(): Promise<Client> {
     return clientInstance;
   }
 
-  const transportUrl = new URL(MCP_SERVER_URL);
+  const serverUrl = getMcpServerUrl();
+  const transportUrl = new URL(serverUrl);
+
   transportInstance = new SSEClientTransport(transportUrl);
 
   clientInstance = new Client(
