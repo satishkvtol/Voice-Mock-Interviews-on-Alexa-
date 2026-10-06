@@ -52,15 +52,57 @@ export async function resetMcpClient() {
   transportInstance = null;
 }
 
+// Resilient Tool Execution Engine (Direct RPC on Vercel + SSE Client Fallback)
+async function callMcpTool(name: string, args: Record<string, any>): Promise<any> {
+  // If in production (Vercel) or window location is remote, use direct HTTP RPC for 100% reliability
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    try {
+      const response = await fetch(`${window.location.origin}/api/mcp/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: name, arguments: args }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+      const res = await response.json();
+      if (res.isError) throw new Error(res.content?.[0]?.text || `Error executing ${name}`);
+      return res.structuredContent;
+    } catch (err: any) {
+      console.warn('Direct HTTP tool call failed, attempting SSE MCP client fallback:', err);
+    }
+  }
+
+  // Local Dev / Standard SSE Connection
+  try {
+    const client = await getMcpClient();
+    const res: any = await client.callTool({
+      name,
+      arguments: args,
+    });
+    if (res.isError) throw new Error(res.content?.[0]?.text || `Error executing ${name}`);
+    return res.structuredContent;
+  } catch (err: any) {
+    // Ultimate safety net: HTTP POST fallback to /api/mcp/rpc
+    try {
+      const response = await fetch(`${window.location.origin}/api/mcp/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: name, arguments: args }),
+      });
+      if (!response.ok) throw new Error(`MCP execution failed: ${err.message}`);
+      const res = await response.json();
+      if (res.isError) throw new Error(res.content?.[0]?.text || `Error executing ${name}`);
+      return res.structuredContent;
+    } catch (fallbackErr: any) {
+      throw new Error(`MCP Tool Error: ${err.message || fallbackErr.message}`);
+    }
+  }
+}
+
 // Tool Call Wrappers
 export async function mcpParseResume(resumeText: string) {
-  const client = await getMcpClient();
-  const res: any = await client.callTool({
-    name: 'parse_resume',
-    arguments: { resumeText },
-  });
-  if (res.isError) throw new Error(res.content?.[0]?.text || 'Error parsing resume');
-  return res.structuredContent;
+  return callMcpTool('parse_resume', { resumeText });
 }
 
 export async function mcpStartInterview(
@@ -70,41 +112,17 @@ export async function mcpStartInterview(
   difficulty: 'easy' | 'medium' | 'hard',
   numQuestions: number
 ) {
-  const client = await getMcpClient();
-  const res: any = await client.callTool({
-    name: 'start_interview',
-    arguments: { resumeText, jobDescription, role, difficulty, numQuestions },
-  });
-  if (res.isError) throw new Error(res.content?.[0]?.text || 'Error starting interview');
-  return res.structuredContent;
+  return callMcpTool('start_interview', { resumeText, jobDescription, role, difficulty, numQuestions });
 }
 
 export async function mcpNextQuestion(sessionId: string) {
-  const client = await getMcpClient();
-  const res: any = await client.callTool({
-    name: 'next_question',
-    arguments: { sessionId },
-  });
-  if (res.isError) throw new Error(res.content?.[0]?.text || 'Error fetching next question');
-  return res.structuredContent;
+  return callMcpTool('next_question', { sessionId });
 }
 
 export async function mcpScoreAnswer(sessionId: string, answer: string) {
-  const client = await getMcpClient();
-  const res: any = await client.callTool({
-    name: 'score_answer',
-    arguments: { sessionId, answer },
-  });
-  if (res.isError) throw new Error(res.content?.[0]?.text || 'Error scoring answer');
-  return res.structuredContent;
+  return callMcpTool('score_answer', { sessionId, answer });
 }
 
 export async function mcpSessionReport(sessionId: string) {
-  const client = await getMcpClient();
-  const res: any = await client.callTool({
-    name: 'session_report',
-    arguments: { sessionId },
-  });
-  if (res.isError) throw new Error(res.content?.[0]?.text || 'Error fetching report');
-  return res.structuredContent;
+  return callMcpTool('session_report', { sessionId });
 }

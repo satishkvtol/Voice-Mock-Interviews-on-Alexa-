@@ -2,12 +2,12 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { parseResumeInputSchema, parseResumeHandler } from './src/mcp/tools/parse_resume.js';
-import { startInterviewInputSchema, startInterviewHandler } from './src/mcp/tools/start_interview.js';
-import { nextQuestionInputSchema, nextQuestionHandler } from './src/mcp/tools/next_question.js';
-import { scoreAnswerInputSchema, scoreAnswerHandler } from './src/mcp/tools/score_answer.js';
-import { sessionReportInputSchema, sessionReportHandler } from './src/mcp/tools/session_report.js';
-import { initStorage } from './src/services/storage.js';
+import { parseResumeInputSchema, parseResumeHandler } from '../src/server/mcp/tools/parse_resume.js';
+import { startInterviewInputSchema, startInterviewHandler } from '../src/server/mcp/tools/start_interview.js';
+import { nextQuestionInputSchema, nextQuestionHandler } from '../src/server/mcp/tools/next_question.js';
+import { scoreAnswerInputSchema, scoreAnswerHandler } from '../src/server/mcp/tools/score_answer.js';
+import { sessionReportInputSchema, sessionReportHandler } from '../src/server/mcp/tools/session_report.js';
+import { initStorage } from '../src/server/services/storage.js';
 
 const app = express();
 app.use(cors({ origin: '*', credentials: true }));
@@ -92,6 +92,42 @@ app.post('/api/mcp/messages', async (req: Request, res: Response) => {
   }
 
   await transport.handlePostMessage(req, res, req.body);
+});
+
+app.post('/api/mcp/rpc', async (req: Request, res: Response) => {
+  try {
+    const { method, params, tool, arguments: toolArgs } = req.body || {};
+    const toolName = tool || params?.name;
+    const args = toolArgs || params?.arguments || {};
+
+    let result: any;
+    if (toolName === 'parse_resume') {
+      result = await parseResumeHandler(args);
+    } else if (toolName === 'start_interview') {
+      result = await startInterviewHandler(args);
+    } else if (toolName === 'next_question') {
+      result = await nextQuestionHandler(args);
+    } else if (toolName === 'score_answer') {
+      result = await scoreAnswerHandler(args);
+    } else if (toolName === 'session_report') {
+      result = await sessionReportHandler(args);
+    } else {
+      res.status(400).json({ isError: true, content: [{ type: 'text', text: `Unknown tool: ${toolName}` }] });
+      return;
+    }
+
+    if (method === 'tools/call') {
+      res.json({
+        jsonrpc: '2.0',
+        id: req.body.id || 1,
+        result: result,
+      });
+    } else {
+      res.json(result);
+    }
+  } catch (error: any) {
+    res.status(500).json({ isError: true, content: [{ type: 'text', text: error.message || 'Internal Server Error' }] });
+  }
 });
 
 export default app;

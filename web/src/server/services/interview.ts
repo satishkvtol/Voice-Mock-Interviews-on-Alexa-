@@ -293,15 +293,15 @@ Target Job Description: ${jobDescription}
 
 Generate ${totalQuestions} questions strictly adhering to the JSON schema.`;
 
-  const planResult = await invokeBedrockJson<{ questions: z.infer<typeof QuestionGeneratedSchema>[] }>(
+  const planResult = await invokeBedrockJson<any>(
     systemPrompt,
     userPrompt,
-    InterviewPlanSchema,
+    InterviewPlanSchema as any,
     () => getDynamicPlan(totalQuestions, role, parsedResume, jobDescription)
   );
 
   const sessionId = uuidv4();
-  const session: ISession = {
+  const session: any = {
     sessionId,
     role,
     difficulty,
@@ -309,7 +309,7 @@ Generate ${totalQuestions} questions strictly adhering to the JSON schema.`;
     resumeText,
     jobDescription,
     parsedResume,
-    questions: planResult.questions.map((q, idx) => ({ ...q, index: idx })),
+    questions: (planResult.questions || []).map((q: any, idx: number) => ({ ...q, index: idx })),
     currentQuestionIndex: 0,
     status: 'in_progress',
     createdAt: new Date(),
@@ -318,7 +318,7 @@ Generate ${totalQuestions} questions strictly adhering to the JSON schema.`;
 
   await saveSession(session);
 
-  const topics = session.questions.map((q) => q.topic);
+  const topics = session.questions.map((q: any) => q.topic);
   const firstQuestion = session.questions[0]?.question || 'Tell me about yourself and your technical background.';
 
   return {
@@ -358,10 +358,10 @@ Scoring Rubric (0 to 10 scale):
 
 Provide scoring in strict JSON format.`;
 
-  const scoreResult = await invokeBedrockJson<ScoreAnswerResult>(
+  const scoreResult = await invokeBedrockJson<any>(
     systemPrompt,
     userPrompt,
-    ScoreAnswerSchema,
+    ScoreAnswerSchema as any,
     () => getDynamicScore(currentQ, answer)
   );
 

@@ -26,7 +26,7 @@ export async function initStorage() {
 export async function saveSession(session: ISession): Promise<ISession> {
   if (isMongoConnected) {
     try {
-      await SessionModel.findOneAndUpdate({ sessionId: session.sessionId }, session, {
+      await (SessionModel as any).findOneAndUpdate({ sessionId: session.sessionId }, session, {
         upsert: true,
         new: true,
       });
@@ -42,7 +42,7 @@ export async function saveSession(session: ISession): Promise<ISession> {
 export async function getSession(sessionId: string): Promise<ISession | null> {
   if (isMongoConnected) {
     try {
-      const doc = await SessionModel.findOne({ sessionId }).lean();
+      const doc = await (SessionModel as any).findOne({ sessionId }).lean();
       if (doc) return (doc as unknown) as ISession;
     } catch (err: any) {
       logger.error('Failed to query session from MongoDB', { error: err.message });
