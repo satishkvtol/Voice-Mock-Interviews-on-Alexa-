@@ -1,0 +1,32 @@
+services:
+  # Express MCP Server Service
+  - type: web
+    name: interview-dojo-server
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: cd server && npm install && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        sync: false # Set to your deployed web app URL (e.g. https://interview-dojo-web.onrender.com)
+      - key: AWS_REGION
+        value: us-east-1
+      - key: BEDROCK_MODEL_ID
+        value: us.anthropic.claude-3-5-sonnet-20241022-v2:0
+      - key: MOCK_LLM
+        value: false
+
+  # React Alexa+ Simulator Web App
+  - type: web
+    name: interview-dojo-web
+    env: static
+    buildCommand: cd web && npm install && npm run build
+    staticPublishPath: web/dist
+    envVars:
+      - key: VITE_MCP_SERVER_URL
+        sync: false # Set to your deployed server URL + /mcp (e.g. https://interview-dojo-server.onrender.com/mcp)
